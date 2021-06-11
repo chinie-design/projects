@@ -1,0 +1,260 @@
+---
+title: "Practical Project"
+author: "b188193"
+date: "10/18/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+library(MASS)
+library(ggplot2)
+library(foreign)
+library(dplyr)
+library('tidyverse')
+library('haven')
+tidyverse::tidyverse_packages()
+library(nycflights13)
+install.packages("readstata13")
+library(readstata13)
+df  <- read.dta13("EVS_2018.dta")
+head(df)
+summary(df)
+```
+```{r}
+#Q1 What is the percentage of people who are members of at least 2 groups? (As measured by questions from v9 to v 19). What is this percentage for Germany? What is this percentage for females who are older than 40?
+a<-df %>%mutate(member = select(.,v9:v19) %>% rowSums(na.rm = TRUE)) %>% filter(member > 1) %>% summarise(N=n())#create a subset that only include people who think they are members of at least 2 groups.
+percentage_2<-a/nrow(df)*100
+percentage_2
+# 93.55485% people think they belong to at least 2 groups
+b<-df %>%filter(c_abrv=='DE') %>%mutate(member = select(.,v9:v19) %>% rowSums(na.rm = TRUE)) %>% filter(member > 1) %>% summarise(N=n())
+sub_germany<-subset(df,c_abrv=="DE")
+nrow(sub_germany)
+percentage_2_germany<-b/nrow(sub_germany)*100
+percentage_2_germany
+#66.96874% people in Germany think they belong to at least 2 groups
+c<-df %>%filter(v225=='female'&age>=40) %>%mutate(member = select(.,v9:v19) %>% rowSums(na.rm = TRUE)) %>% filter(member > 1) %>% summarise(N=n())
+sub_olderthan40<-subset(df,v225=='female'&age>=40)
+percentage_2_olderthan40<-c/nrow(sub_olderthan40)*100
+percentage_2_olderthan40
+#93.75864	% people who older than 40 think they belong to at least 2 groups
+```
+
+```{r}
+#Q2 What is the average institutional confidence (This variable was generated using questions from v115 to v131. Variable name: confidence.) for those who do not belong to any group (as defined in question 1)? What is the average institutional confidence for those who belong to at least one group? Compare the distributions of institutional confidence for these two groups using an appropriate graph.
+d<-subset(df %>%mutate(member = select(.,v9:v19) %>% rowSums(na.rm = TRUE)) %>% filter(member == 0)) #create a subset that only include people who think they are not members of any group.
+summary(d$confidence)
+# it can been seen that people who think they do not belong to any group, their mean institutional confidence score is 0.1740
+
+e<-subset(df %>%mutate(member = select(.,v9:v19) %>% rowSums(na.rm = TRUE)) %>% filter(member > 0))#create a subset that only include people who think they are at least one member of a group.
+summary(e$confidence) # it can been seen that people who think they do not belong to any group, their mean institutional confidence score is -0.01174
+par(mfrow=c(1,2))
+h <- ggplot(d, aes(x = confidence))
+h + geom_histogram(colour = "black")
+p <- ggplot(e, aes(x = confidence))
+p + geom_histogram(colour = "blue")
+#For those who belonged to at least one group, their confidence was more evenly distributed around 0, while for those who believed they did not belong to any group, their images were distributed more on the above 0 side. For both groups, most people's confidence score were around 0.
+
+```
+```{r}
+# Q3 For which country is the correlation between confidence and age is highest? What is the median correlation between confidence and age for countries which has the letter ‘O’ in their names?
+cc<-df %>% group_by(country) %>% summarise(cor(confidence,age,use = "pairwise")) %>% arrange_at(2,desc)
+cc
+# it can been seen from the chart that Sweden is the positive highest,Slovak Republic is the negative highest. But the highest correlation would be Slovak Republic.
+#select countries with letter"o" in their names
+cc<-as.data.frame(cc)
+dat_o<- cc %>%
+  filter_all(any_vars(grepl("o",.)))
+sort(abs(dat_o$`cor(confidence, age, use = "pairwise")`))
+median<-(0.06039769+0.06487406)/2
+median
+#it can be seen that there are 8 countries, in this case, the median correlation would the fourth country plus the fifth country/2, which is 0.06263587.
+```
+```{r}
+#Q4 What percentage of people aged between 20 and 30 believe in God? For which country this is minimum? What about those who are older than 50?
+subyoungdf1<-subset(df,age>=20&age<=30)
+prop.table(table(subyoungdf1$v57))
+#it can be seen from the table that there are 65.48% people who aged between 20 and 30 believe in God.
+believe_in_god_young<-subset(subyoungdf1, v57="yes")
+prop.table(table(believe_in_god_young$country))
+#it can seen from the table that the Slovenia has the minimum young people who aged between 20 and 30 believe in God, which is 1.713431% of whole number that people who aged between 20 and 30 believe in God.
+subolddf1<-subset(df,age>=50)
+prop.table(table(subolddf1$v57))
+#it can be seen from the table that there are 73.28791% people who aged aged older than 50, they believe in God.
+believe_in_god_old<-subset(subolddf1, v57="yes")
+prop.table(table(believe_in_god_old$country))
+#it can seen from the table that the Norway  has the minimum senior people who aged older than 50 believe in God, which only take 1.835921% of whole number that people who aged older than 50 believe in god
+```
+```{r}
+# Q5 Create a new variable measuring interpersonal trust by simply taking the averages of questions v32-v37 and call this variable ‘intp.trust’. Provide an appropriate graph which summarizes the relationship between intp.trust and confidence for males in Iceland. Provide the same plot for Swiss females. Now visualize these two relationships on a single graph.
+df  <- read.dta13("EVS_2018.dta")
+submaleiceland<-subset(df,df$country=="Iceland"&df$v225=="male")
+submaleiceland2 <- data.frame(lapply(submaleiceland, function(x) as.numeric(x)))
+str(submaleiceland2)
+submaleiceland2$intp.trust<- (submaleiceland2$v32+submaleiceland2$v33+submaleiceland2$v34+submaleiceland2$v35+submaleiceland2$v36+submaleiceland2$v37)/6
+submaleiceland2$intp.trust
+p2<-ggplot(submaleiceland2, aes(intp.trust, confidence)) +
+geom_point() + 
+geom_line()
+p2
+#The above graph shows the relationship between intp.trust and confidence for males in Iceland
+
+df  <- read.dta13("EVS_2018.dta")
+subfemaleswiss<-subset(df,df$country=="Switzerland"&df$v225=="female")
+head(subfemaleswiss)
+subfemaleswiss2 <- data.frame(lapply(subfemaleswiss, function(x) as.numeric(x)))
+str(df2)
+subfemaleswiss2 $intp.trust<- (subfemaleswiss2$v32+subfemaleswiss2$v33+subfemaleswiss2$v34+subfemaleswiss2$v35+subfemaleswiss2$v36+subfemaleswiss2$v37)/6
+subfemaleswiss2 $intp.trust
+p3<-ggplot(subfemaleswiss2, aes(intp.trust, confidence)) +
+geom_point() + 
+geom_line()
+p3
+#The above graph shows the relationship between intp.trust and confidence for females in swiss
+p <- ggplot() +
+      # blue plot for male in Iceland
+      geom_point(data=submaleiceland2, aes(x=intp.trust, y=confidence)) + 
+      geom_smooth(data=submaleiceland2, aes(x=intp.trust, y=confidence), fill="blue",
+        colour="darkblue", size=1) +
+      # red plot for female in Swiss
+      geom_point(data=subfemaleswiss2, aes(x=intp.trust, y=confidence)) + 
+      geom_smooth(data=subfemaleswiss2, aes(x=intp.trust, y=confidence), fill="red",
+        colour="red", size=1)
+p
+#As can be seen from the graph, the interpersonal trust and confidence curves of Irish men and swiss women almost overlap in the early period. And as interpersonal trust increases, after about 12, Irish males with the same interpersonal trust scores,they score better than swiss females on Confidence. And later, some of the swiss females scored high on interpersonal confidence, but the confidence scores remained lower than those of equivalent Irish males. Finally there are some swiss females with high interpersonal confidence scores, and at this stage there is very few observed sample of Irish males.
+```
+```{r}
+# Q6 How many respondents have at least 3 missing responses for questions between v65 to v71?
+df  <- read.dta13("EVS_2018.dta")
+df$v65.NA <- ifelse(is.na(df$v65), 1, 0)
+df$v66.NA <- ifelse(is.na(df$v66), 1, 0)
+df$v67.NA <- ifelse(is.na(df$v67), 1, 0)
+df$v68.NA <- ifelse(is.na(df$v68), 1, 0)
+df$v69.NA <- ifelse(is.na(df$v69), 1, 0)
+df$v70.NA <- ifelse(is.na(df$v70), 1, 0)
+df$v71.NA <- ifelse(is.na(df$v71), 1, 0)
+library(dummies)
+dummy.data.frame(df)
+sub_3group<-subset(df,v65.NA+v66.NA+v67.NA+v68.NA+v69.NA+v70.NA+v71.NA>=3)
+# since NA is 1, and at least 3 missing responses for questions between v65 to v71 will be v65.NA+v66.NA+v67.NA+v68.NA+v69.NA+v70.NA+v71.NA>=3.
+nrow(sub_3group)
+#there are 2743 respondents have at least 3 missing responses for questions between v65 to v71.
+```
+```{r}
+# q7 Choose the correct method to investigate the determinants of intp.trust for countries which start the letter ‘S’. On top of age, gender, and their interaction, choose 3 more independent variables which you think make theoretical sense. (You will not be marked down for your variable choices.) Comment on all the important output components of your model-coefficient estimates, significance levels, goodness of fit statistics etc. Run post-estimation diagnostic tests and interpret the results.
+df <- data.frame(lapply(df, function(x) as.numeric(x)))
+str(df)
+df$intp.trust<- (df$v32+df$v33+df$v34+df$v35+df$v36+df$v37)/6
+#I will choose v238(do you live with your parents/in law);v240(numbers of people in the house);v242(age completed education respondent)
+summary(fit<-lm(intp.trust~factor(v238)+v240+v242,df))
+# it can seen that the Adjusted R-squared is only 0.04663, it means that the model fits poorly.For the factor(v238)14 which is 0.547 larger than 0.05,is statistically insignificant, which indicates that it is not particularly important in determining intp.trust. In addition to that, all other variables have values less than 0.05, which are significant,which indicates that it is somewhat important in determining intp.trust . Since the linear model normally should be R2=>.7, we should add non-linear relationships to the model, or add the effect of interactions, to improve the value of r2 and thus the performance of the model.
+fit$residuals
+#it can seen that the residuals are relatively large, so the model's fitting is not well.
+#interpret the results：Intercept means answering not live with parents (including in law)'s mean intp.trust, in the case of 0 people in the house, and 0 years of completed education (practically impossible). For those who answered living with their parents, their intp.trust was 0.136 times of those who did not live with their parents. For people who answered live parent(s) in law, their intp.trust was 0.1690863 times of those who did not live with their parents.Also we can see that having more people at home, the higher intp.trust will be. Conversely, intp.trust score will lower if a person complete their education later.
+#Run post-estimation diagnostic tests and interpret the results
+SSR=deviance(fit)
+SSR
+R2=summary(fit)$r.squared
+SST=SSR/(1-R2)
+SST
+SSE=SST-SSR
+SSE
+hist(fit$residuals)
+shapiro.test(resid(fit))
+summary(lm(log(intp.trust) ~ factor(v238)+v240+v242,df))
+# The SSR, SST and SSE is help to calculate the R2, but since the output include it, I will leave that out. From the graph made by hist(fit$residuals), we can see the residuals are normally distributed. As the shapiro.test can't apply here(too many samples), I will try to use the log transformation to see the linearity.The Adjusted R-squared:  0.04663 is slightly larger than the previous, the linearity of the previous one is not good.
+```
+
+```{r}
+#Q.8) Now, consider the residuals from question 7. Compare the residual distributions for males and females using an appropriate graph. What do you observe? What were you expecting to observe?
+
+df  <- read.dta13("EVS_2018.dta")
+f_df<-subset(df,df$v225=="female")
+f_df <- data.frame(lapply(f_df, function(x) as.numeric(x)))
+f_df$intp.trust<- (f_df$v32+f_df$v33+f_df$v34+f_df$v35+f_df$v36+f_df$v37)/6
+summary(fit1<-lm(intp.trust~factor(v238)+v240+v242,f_df))
+
+m_df<-subset(df,df$v225=="male")
+m_df <- data.frame(lapply(m_df, function(x) as.numeric(x)))
+m_df$intp.trust<- (m_df$v32+m_df$v33+m_df$v34+m_df$v35+m_df$v36+m_df$v37)/6
+head(m_df)
+summary(fit2<-lm(intp.trust~factor(v238)+v240+v242,m_df))
+par(mfrow=c(1,2))
+plot(fit1,which = 1)
+plot(fit2,which = 1)
+par(mfrow=c(1,2))
+hist(fit1$residuals)
+hist(fit2$residuals)
+#The distribution of residuals for both males and females is normally distributed, which is consistent with the model assumptions. Another thing is that the variance of the residuals increases with the mean, and an attempt should be made to improve the model.
+#The distribution of residuals for females is more skewed in the positive direction（eg: fewer values less than -1, but some values in 2), while the distribution of residuals for males is more normally distributed. Females have slightly better fitness than males in the model.I would have predicted the same thing, because women are more susceptible in terms of intp.trust. For example, different numbers of people in the household could effect women more than man. Therefore, the fitness should be slightly higher under the linear model.
+```
+```{r}
+#Q.9)Recode the turnout variable at the national level (v172) as abinary variable (Code ‘always’ and ‘usually’ as 1, ‘never’ as 0 and, ‘not allowed to vote’ as missing). Name this new variable ‘turnout’. Now choose the correct method to investigate the determinants of this binary turnout measure for France. On top of age and gender, choose 3 more independent variables which you think make theoretical sense. Comment on all the important output components of your model; coefficient estimates, significance levels, marginal effects, and goodness of fit statistics.
+df  <- read.dta13("EVS_2018.dta")
+fe_df<-subset(df,df$country=="France")#ready to analysis for France
+
+fe_df$turnout<-ifelse(fe_df$v172%in%c("always","usually"),'1',ifelse(df$v172=="never","0","missing"))#create new variable ‘turnout’
+fe_df <- fe_df[fe_df$turnout!="missing",] #drop the level 'missing', since for conducting logestic regression, the y value has to be binary. Another reason is that the requirement said"binary turnout measure for France", so it's not a multinomial regression.
+fe_df$turnout <- factor(fe_df$turnout)
+str(fe_df$turnout)
+Model = glm(turnout ~ v242 + factor(v259) + v240, 
+                family=binomial (link="logit"),data=fe_df)
+summary(Model)
+#i will choose v242(age completed education respondent), v259(respondent experienced unemployment longer than 3 months),v240(numbers of people in the house)
+
+exp(Model$coefficients)
+#As can be seen from the p-values, the only two that are significant are Intercept and v259, which are less than 0.05.For each unit change in v242, the log odds of frequent voting increase by 0.03317, and its p-value indicates that it is not particularly important in determining turnout. v240 For each unit change in v240, the log odds of frequent voting decrease by -0.09575, and its p-value indicates that it is not particularly important in determining turnout.The interpretation of v259 differs from others in that changing from having been unemployed for three months in the past to not been unemployed will increase the log odds of voting by 1.14393 , and the p-value indicates that it is somewhat significant in determining the voting rate. The actual coefficients is 23.8412232 for Intercept,3.1390779 for v259)12.
+library(fmsb)
+NagelkerkeR2(Model)
+#as for the goodness of fit statistics, we can see that the R2 is 0.029, quite small, which indicates the fitness of this model is not well.
+install.packages("mfx")
+library("mfx")
+Model1 = probitmfx(turnout ~ v242 + factor(v259) + v240, 
+                data=fe_df)
+Model1
+#The printed object shows the function call, a table of the marginal effects, and a notification that the factor(v259)no variable represents a discrete change and the marginal effects for this variable have been calculated accordingly. The marginal effect values appear sensible. For example, a one-unit change in the age completed education respondent associated with an observation reduces the probability of often going to voting 0.03%. We must keep in mind that these marginal effects refer to the average individual. However, we can calculate the average of the sample marginal effects.
+library(sjPlot)
+plot_model(Model,type = 'pred', terms = 'v242')
+plot_model(Model,type = 'pred', terms = c('v259','v242'))
+# you can see the marginal effects in the graph, it shows that the change in the probability of going to the polls as the age changes. second graph add the variable if experienced unemployment longer than 3 months, shows the probability of going to the polls as the age changes and if experienced unemployment longer than 3 months.
+```
+```{r}
+#Q.10) Using the coefficient estimates from question 9, predict turnout behavior for Germany. What is the correctly predicted ratio? How does it compare it to the correctly predicted ratio for France? Why do you think this is the case?
+
+ge_df<-subset(df,df$country=="Germany")
+ge_df$turnout<-ifelse(ge_df$v172%in%c("always","usually"),'1',ifelse(df$v172=="never","0","missing"))
+ge_df <- ge_df[ge_df$turnout!="missing",] 
+ge_df$turnout <- factor(ge_df$turnout)
+str(ge_df$turnout)
+#prepare our data for predicting turnout behavior for Germany
+probabilities <- Model %>% predict(ge_df, type = "response")
+head(probabilities)
+contrasts(ge_df$turnout)#Check the dummy coding
+predicted.classes <- ifelse(probabilities > 0.5, "1", "0")
+head(predicted.classes)
+table(predicted.classes,ge_df$turnout)
+#we can see that the turnout is 1 and correctly predict as 1 is 2964, and there are 185 instances were misclassified as 0.The correctly predicted ratio would be 2964/185+2964, which is 94.125%.
+
+probabilities_f <- Model %>% predict(fe_df, type = "response")
+head(probabilities_f)
+contrasts(fe_df$turnout)
+predicted.classes_f <- ifelse(probabilities_f > 0.5, "1", "0")
+head(predicted.classes_f)
+table(predicted.classes_f,fe_df$turnout)
+#we can see that the turnout is 1 and correctly predict as 1 is 1513, and there are 18 instances were misclassified as 0.The correctly predicted ratio would be 1513/18+1513, which is 98.824%.
+# actually, the model is not well, for it only predict the result"1", not predict the result 0. Even though the correctly predicted ratio is quite high, but since it say"1"to everyone, it's not a good model. But the overall process to calculate the correctly predicted ratio is correct.
+#As the correctly predicted ratio for Germany and France, it's not surprising that the France' s correctly predicted ratio will be higher than Germany, because this model's training data is France's data.
+```
